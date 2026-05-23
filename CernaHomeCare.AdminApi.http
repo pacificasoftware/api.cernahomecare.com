@@ -1,0 +1,6 @@
+@CernaHomeCare.AdminApi_HostAddress = http://localhost:5172
+
+GET {{CernaHomeCare.AdminApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
