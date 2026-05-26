@@ -1,7 +1,7 @@
 ﻿using CernaHomeCare.AdminApi.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace CernaHomeCare.AdminApi.Auth
+namespace api.cernahomecare.com.Data
 {
     public class CernaHomeCareDbContext : DbContext
     {

@@ -1,4 +1,4 @@
-using CernaHomeCare.AdminApi.Auth;
+using api.cernahomecare.com.Data;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
