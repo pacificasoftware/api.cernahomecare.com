@@ -1,5 +1,6 @@
 ﻿using api.cernahomecare.com.Data;
 using CernaHomeCare.AdminApi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,6 +8,8 @@ namespace CernaHomeCare.AdminApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
+[Authorize(Roles = "Super Admin")]
 public class FranchiseesController : ControllerBase
 {
     private readonly CernaHomeCareDbContext _context;

@@ -19,42 +19,68 @@ namespace api.cernahomecare.com.Data
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
-            builder.Entity<Role>().ToTable("Roles").HasKey(e => e.RoleId);
-            builder.Entity<Franchisee>().ToTable("Franchisees").HasKey(e => e.FranchiseeId);
-            builder.Entity<AdminUser>().ToTable("AdminUsers").HasKey(e => e.AdminUserId);
-            builder.Entity<Candidate>().ToTable("Candidates").HasKey(e => e.CandidateId);
-            builder.Entity<CandidateFile>().ToTable("CandidateFiles").HasKey(e => e.CandidateFileId);
-            builder.Entity<AuditLog>().ToTable("AuditLogs").HasKey(e => e.AuditLogId);
+            builder.Entity<Role>(entity =>
+            {
+                entity.ToTable("RoleMaster");
+                entity.HasKey(e => e.RoleId);
+            });
 
-            builder.Entity<AdminUser>()
-                .HasOne(e => e.Role)
-                .WithMany()
-                .HasForeignKey(e => e.RoleId);
+            builder.Entity<Franchisee>(entity =>
+            {
+                entity.ToTable("Franchisees");
+                entity.HasKey(e => e.FranchiseeId);
+            });
 
-            builder.Entity<AdminUser>()
-                .HasOne(e => e.Franchisee)
-                .WithMany()
-                .HasForeignKey(e => e.FranchiseeId);
+            builder.Entity<AdminUser>(entity =>
+            {
+                entity.ToTable("AdminUser");
+                entity.HasKey(e => e.AdminUserId);
 
-            builder.Entity<Candidate>()
-                .HasOne(e => e.Franchisee)
-                .WithMany()
-                .HasForeignKey(e => e.FranchiseeId);
+                entity.Property(e => e.AdminUserId)
+                    .HasColumnName("AdminId");
 
-            builder.Entity<Candidate>()
-                .HasOne(e => e.AssignedAdminUser)
-                .WithMany()
-                .HasForeignKey(e => e.AssignedAdminUserId);
+                entity.HasOne(e => e.Role)
+                    .WithMany()
+                    .HasForeignKey(e => e.RoleId);
 
-            builder.Entity<CandidateFile>()
-                .HasOne(e => e.Candidate)
-                .WithMany(e => e.CandidateFiles)
-                .HasForeignKey(e => e.CandidateId);
+                entity.HasOne(e => e.Franchisee)
+                    .WithMany()
+                    .HasForeignKey(e => e.FranchiseeId);
+            });
 
-            builder.Entity<AuditLog>()
-                .HasOne(e => e.AdminUser)
-                .WithMany()
-                .HasForeignKey(e => e.AdminUserId);
+            builder.Entity<Candidate>(entity =>
+            {
+                entity.ToTable("Candidates");
+                entity.HasKey(e => e.CandidateId);
+
+                entity.HasOne(e => e.Franchisee)
+                    .WithMany()
+                    .HasForeignKey(e => e.FranchiseeId);
+
+                entity.HasOne(e => e.AssignedAdminUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.AssignedAdminUserId);
+            });
+
+            builder.Entity<CandidateFile>(entity =>
+            {
+                entity.ToTable("CandidateFiles");
+                entity.HasKey(e => e.CandidateFileId);
+
+                entity.HasOne(e => e.Candidate)
+                    .WithMany(e => e.CandidateFiles)
+                    .HasForeignKey(e => e.CandidateId);
+            });
+
+            builder.Entity<AuditLog>(entity =>
+            {
+                entity.ToTable("AuditLogs");
+                entity.HasKey(e => e.AuditLogId);
+
+                entity.HasOne(e => e.AdminUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.AdminUserId);
+            });
         }
     }
 }

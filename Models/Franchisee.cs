@@ -3,7 +3,8 @@
 public class Franchisee
 {
     public int FranchiseeId { get; set; }
-    public string FranchiseName { get; set; } = string.Empty;
+
+    public string FranchiseName { get; set; } = "";
     public string? ContactName { get; set; }
     public string? Email { get; set; }
     public string? Phone { get; set; }
@@ -12,7 +13,9 @@ public class Franchisee
     public string? City { get; set; }
     public string? State { get; set; }
     public string? ZipCode { get; set; }
+
     public bool IsActive { get; set; }
+
     public DateTime CreatedUtc { get; set; }
     public DateTime? UpdatedUtc { get; set; }
 }
