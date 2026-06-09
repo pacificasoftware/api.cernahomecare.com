@@ -7,8 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CernaHomeCare.AdminApi.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-[Authorize]
+[Route("api/[controller]")] 
 [Authorize(Roles = "Super Admin")]
 public class FranchiseesController : ControllerBase
 {
