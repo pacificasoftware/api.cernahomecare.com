@@ -117,7 +117,7 @@ public class CandidatesController : ControllerBase
                 Franchisee = x.Franchisee == null ? null : new
                 {
                     x.Franchisee.FranchiseeId,
-                    x.Franchisee.FranchiseName
+                    x.Franchisee.FranchiseeName
                 },
                 AssignedAdminUser = x.AssignedAdminUser == null ? null : new
                 {

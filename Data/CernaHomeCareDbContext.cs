@@ -15,7 +15,8 @@ namespace api.cernahomecare.com.Data
         public DbSet<AdminUser> AdminUsers { get; set; }
         public DbSet<Candidate> Candidates { get; set; }
         public DbSet<CandidateFile> CandidateFiles { get; set; }
-        public DbSet<AuditLog> AuditLogs { get; set; }
+        public DbSet<AuditLog> AuditLogs { get; set; } 
+        public DbSet<Jobs> Jobs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

@@ -130,7 +130,7 @@ public class AuthController : ControllerBase
             user.RoleId,
             user.RoleName,
             user.FranchiseeId,
-            user.FranchiseName,
+            user.FranchiseeName,
             token
         });
     }

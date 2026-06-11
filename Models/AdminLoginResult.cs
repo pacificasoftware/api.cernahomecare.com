@@ -10,6 +10,6 @@
         public string? UserName { get; set; }
         public string? FullName { get; set; }
         public int? FranchiseeId { get; set; }
-        public string? FranchiseName { get; set; }
+        public string? FranchiseeName { get; set; }
     }
 }

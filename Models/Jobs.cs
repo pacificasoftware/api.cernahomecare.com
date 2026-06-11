@@ -1,0 +1,27 @@
+﻿namespace CernaHomeCare.AdminApi.Models;
+
+public class Jobs
+{
+    public int JobId { get; set; }
+
+    public int FranchiseeId { get; set; }
+
+    public string JobTitle { get; set; } = string.Empty;
+    public string? JobType { get; set; }
+    public string? ShiftType { get; set; }
+    public string? JobDescription { get; set; }
+
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? ZipCode { get; set; }
+
+    public string? PayRange { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public int SortOrder { get; set; }
+
+    public DateTime CreatedUtc { get; set; }
+    public DateTime? UpdatedUtc { get; set; } 
+    public Franchisee? Franchisee { get; set; }
+}
