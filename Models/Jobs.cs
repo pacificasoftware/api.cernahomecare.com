@@ -1,7 +1,10 @@
-﻿namespace CernaHomeCare.AdminApi.Models;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace CernaHomeCare.AdminApi.Models;
 
 public class Jobs
 {
+    [Key]
     public int JobId { get; set; }
 
     public int FranchiseeId { get; set; }
@@ -20,6 +23,8 @@ public class Jobs
     public bool IsActive { get; set; } = true;
 
     public int SortOrder { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
 
     public DateTime CreatedUtc { get; set; }
     public DateTime? UpdatedUtc { get; set; } 

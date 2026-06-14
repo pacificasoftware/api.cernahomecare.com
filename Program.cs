@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
+using api.cernahomecare.com.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,13 +82,14 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowCernaSites", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-                "https://www.cernahomecare.com",
-                "https://cernahomecare.com",
+        policy
+            .WithOrigins(
                 "http://localhost:3000",
-                "https://localhost:3000"
+                "https://localhost:3000",
+                "https://www.cernahomecare.com",
+                "https://cernahomecare.com"
             )
             .AllowAnyHeader()
             .AllowAnyMethod();
@@ -103,6 +105,8 @@ builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 10 * 1024 * 1024;
 });
+
+builder.Services.AddHttpClient<GoogleGeocodingService>();
 
 var app = builder.Build();
 

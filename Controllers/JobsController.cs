@@ -64,7 +64,7 @@ public class JobsController : ControllerBase
 
         return Ok(jobs);
     }
-
+   
     [HttpPost]
     public async Task<IActionResult> Create(Jobs job)
     {
@@ -158,39 +158,39 @@ public class JobsController : ControllerBase
         return NoContent();
     }
 
-    [AllowAnonymous]
-    [HttpGet("public/active")]
-    public async Task<IActionResult> GetPublicActiveJobs()
-    {
-        var jobs = await _context.Jobs
-            .Include(j => j.Franchisee)
-            .Where(j => j.IsActive && j.Franchisee != null && j.Franchisee.IsActive)
-            .OrderBy(j => j.FranchiseeId)
-            .ThenBy(j => j.SortOrder)
-            .ThenBy(j => j.JobTitle)
-            .Select(j => new
-            {
-                j.JobId,
-                j.FranchiseeId,
-                FranchiseeName = j.Franchisee!.FranchiseeName,
-                FranchiseeCity = j.Franchisee.City,
-                FranchiseeState = j.Franchisee.State,
-                FranchiseeZipCode = j.Franchisee.ZipCode,
+    //[AllowAnonymous]
+    //[HttpGet("public/active")]
+    //public async Task<IActionResult> GetPublicActiveJobs()
+    //{
+    //    var jobs = await _context.Jobs
+    //        .Include(j => j.Franchisee)
+    //        .Where(j => j.IsActive && j.Franchisee != null && j.Franchisee.IsActive)
+    //        .OrderBy(j => j.FranchiseeId)
+    //        .ThenBy(j => j.SortOrder)
+    //        .ThenBy(j => j.JobTitle)
+    //        .Select(j => new
+    //        {
+    //            j.JobId,
+    //            j.FranchiseeId,
+    //            FranchiseeName = j.Franchisee!.FranchiseeName,
+    //            FranchiseeCity = j.Franchisee.City,
+    //            FranchiseeState = j.Franchisee.State,
+    //            FranchiseeZipCode = j.Franchisee.ZipCode,
 
-                j.JobTitle,
-                j.JobType,
-                j.ShiftType,
-                j.JobDescription,
-                j.City,
-                j.State,
-                j.ZipCode,
-                j.PayRange,
-                j.SortOrder
-            })
-            .ToListAsync();
+    //            j.JobTitle,
+    //            j.JobType,
+    //            j.ShiftType,
+    //            j.JobDescription,
+    //            j.City,
+    //            j.State,
+    //            j.ZipCode,
+    //            j.PayRange,
+    //            j.SortOrder
+    //        })
+    //        .ToListAsync();
 
-        return Ok(jobs);
-    }
+    //    return Ok(jobs);
+    //}
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
