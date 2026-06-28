@@ -21,17 +21,32 @@ public class PublicJobsController : ControllerBase
         _googleGeocodingService = googleGeocodingService;
     }
 
+
     [AllowAnonymous]
     [HttpGet("active")]
     public async Task<IActionResult> GetPublicActiveJobs(
-        [FromQuery] string? zipCode,
-        [FromQuery] double? latitude,
-        [FromQuery] double? longitude,
-        [FromQuery] double radiusMiles = 50)
+     [FromQuery] string? zipCode,
+     [FromQuery] double? latitude,
+     [FromQuery] double? longitude,
+     [FromQuery] string? searchedLocation,
+     [FromQuery] double radiusMiles = 50)
     {
         const double earthRadiusMiles = 3958.8;
 
-        string searchedCity = "";
+        string searchedCity = searchedLocation ?? "";
+
+        if (!string.IsNullOrWhiteSpace(zipCode))
+        {
+            zipCode = zipCode.Trim();
+
+            if (zipCode.Length != 5 || !zipCode.All(char.IsDigit))
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid ZIP code."
+                });
+            }
+        }
 
         var baseQuery = _context.Jobs
             .Include(j => j.Franchisee)
@@ -48,13 +63,17 @@ public class PublicJobsController : ControllerBase
             {
                 return BadRequest(new
                 {
-                    message = "Could not find latitude and longitude for the ZIP code."
+                    message = "Invalid ZIP code."
                 });
             }
 
-            latitude = coordinates.Value.Latitude;
-            longitude = coordinates.Value.Longitude;
-            searchedCity = coordinates.Value.City;
+            latitude = coordinates.Latitude;
+            longitude = coordinates.Longitude;
+
+            if (string.IsNullOrWhiteSpace(searchedCity))
+            {
+                searchedCity = coordinates.City;
+            }
         }
 
         if (!latitude.HasValue || !longitude.HasValue)

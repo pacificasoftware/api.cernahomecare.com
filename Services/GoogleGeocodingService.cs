@@ -1,4 +1,7 @@
-﻿using System.Text.Json.Serialization;
+﻿using api.cernahomecare.com.Models;
+using System.Net.Http;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace api.cernahomecare.com.Services;
 
@@ -13,76 +16,183 @@ public class GoogleGeocodingService
         _configuration = configuration;
     }
 
-    public async Task<(double Latitude, double Longitude, string City)?> GetLatLongFromZipAsync(string zipCode)
+    public async Task<ZipCoordinates?> GetLatLongFromZipAsync(string zipCode)
     {
         var apiKey = _configuration["GoogleMaps:ApiKey"];
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            throw new InvalidOperationException("Google Maps API key is missing.");
+            return null;
         }
 
-        var url = $"https://maps.googleapis.com/maps/api/geocode/json?address={Uri.EscapeDataString(zipCode)}&components=postal_code:{Uri.EscapeDataString(zipCode)}|country:US&key={Uri.EscapeDataString(apiKey)}";
+        zipCode = zipCode.Trim();
 
-        var response = await _httpClient.GetFromJsonAsync<GoogleGeocodeResponse>(url);
-
-        if (response == null || response.Status != "OK" || response.Results.Count == 0)
+        if (zipCode.Length != 5 || !zipCode.All(char.IsDigit))
         {
             return null;
         }
 
-        var firstResult = response.Results[0];
-        var location = firstResult.Geometry.Location;
+        var urls = new[]
+        {
+        $"https://maps.googleapis.com/maps/api/geocode/json?components=country:US|postal_code:{Uri.EscapeDataString(zipCode)}&key={Uri.EscapeDataString(apiKey)}",
+        $"https://maps.googleapis.com/maps/api/geocode/json?address={Uri.EscapeDataString(zipCode + ", USA")}&key={Uri.EscapeDataString(apiKey)}"
+    };
 
-        var city =
-            firstResult.AddressComponents.FirstOrDefault(x => x.Types.Contains("locality"))?.LongName
-            ?? firstResult.AddressComponents.FirstOrDefault(x => x.Types.Contains("postal_town"))?.LongName
-            ?? firstResult.AddressComponents.FirstOrDefault(x => x.Types.Contains("administrative_area_level_3"))?.LongName
-            ?? firstResult.AddressComponents.FirstOrDefault(x => x.Types.Contains("administrative_area_level_2"))?.LongName
-            ?? "";
+        foreach (var url in urls)
+        {
+            try
+            {
+                var json = await _httpClient.GetStringAsync(url);
 
-        return (location.Lat, location.Lng, city);
+                using var document = JsonDocument.Parse(json);
+                var root = document.RootElement;
+
+                var status = root.GetProperty("status").GetString();
+
+                if (status != "OK")
+                {
+                    continue;
+                }
+
+                var results = root.GetProperty("results");
+
+                if (results.GetArrayLength() == 0)
+                {
+                    continue;
+                }
+
+                foreach (var result in results.EnumerateArray())
+                {
+                    bool hasMatchingPostalCode = false;
+                    bool isUnitedStates = false;
+
+                    if (!result.TryGetProperty("geometry", out var geometry) ||
+                        !geometry.TryGetProperty("location", out var location))
+                    {
+                        continue;
+                    }
+
+                    var latitude = location.GetProperty("lat").GetDouble();
+                    var longitude = location.GetProperty("lng").GetDouble();
+
+                    string city = "";
+                    string state = "";
+                    string formattedAddress = "";
+
+                    if (result.TryGetProperty("formatted_address", out var formattedAddressElement))
+                    {
+                        formattedAddress = formattedAddressElement.GetString() ?? "";
+                    }
+
+                    if (result.TryGetProperty("address_components", out var components))
+                    {
+                        foreach (var component in components.EnumerateArray())
+                        {
+                            var longName = component.GetProperty("long_name").GetString() ?? "";
+                            var shortName = component.TryGetProperty("short_name", out var shortNameElement)
+                                ? shortNameElement.GetString() ?? ""
+                                : "";
+
+                            var types = component.GetProperty("types")
+                                .EnumerateArray()
+                                .Select(t => t.GetString())
+                                .Where(t => !string.IsNullOrWhiteSpace(t))
+                                .ToList();
+
+                            // Verify ZIP matches exactly
+                            if (types.Contains("postal_code") &&
+                                longName.Equals(zipCode, StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasMatchingPostalCode = true;
+                            }
+
+                            // Verify country is US
+                            if (types.Contains("country") &&
+                                shortName.Equals("US", StringComparison.OrdinalIgnoreCase))
+                            {
+                                isUnitedStates = true;
+                            }
+
+                            if (types.Contains("country"))
+                            {
+                                continue;
+                            }
+
+                            if (string.IsNullOrWhiteSpace(city) &&
+                                (
+                                    types.Contains("locality") ||
+                                    types.Contains("postal_town") ||
+                                    types.Contains("administrative_area_level_3") ||
+                                    types.Contains("administrative_area_level_2")
+                                ))
+                            {
+                                city = longName.Replace(" County", "");
+                            }
+
+                            if (string.IsNullOrWhiteSpace(state) &&
+                                types.Contains("administrative_area_level_1"))
+                            {
+                                state = longName;
+                            }
+                        }
+                    }
+
+                    // Must have exact ZIP match and be in the US
+                    if (!hasMatchingPostalCode || !isUnitedStates)
+                    {
+                        continue;
+                    }
+
+                    var cityLabel = string.Join(", ", new[] { city, state }
+                        .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+                    if (string.IsNullOrWhiteSpace(cityLabel) &&
+                        !string.IsNullOrWhiteSpace(formattedAddress) &&
+                        !formattedAddress.Equals("United States", StringComparison.OrdinalIgnoreCase) &&
+                        !formattedAddress.Equals("USA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var parts = formattedAddress
+                            .Split(',')
+                            .Select(x => x.Trim())
+                            .Where(x =>
+                                !string.IsNullOrWhiteSpace(x) &&
+                                !x.Equals("USA", StringComparison.OrdinalIgnoreCase) &&
+                                !x.Equals("United States", StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+
+                        if (parts.Count >= 2)
+                        {
+                            cityLabel = $"{parts[0]}, {parts[1]}";
+                        }
+                        else if (parts.Count == 1)
+                        {
+                            cityLabel = parts[0];
+                        }
+                    }
+
+                    if (string.IsNullOrWhiteSpace(cityLabel) ||
+                        cityLabel.Equals("United States", StringComparison.OrdinalIgnoreCase) ||
+                        cityLabel.Equals("USA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    return new ZipCoordinates
+                    {
+                        Latitude = latitude,
+                        Longitude = longitude,
+                        City = cityLabel
+                    };
+                }
+            }
+            catch
+            {
+                continue;
+            }
+        }
+
+        return null;
     }
-}
 
-public class GoogleGeocodeResponse
-{
-    [JsonPropertyName("results")]
-    public List<GoogleGeocodeResult> Results { get; set; } = new();
-
-    [JsonPropertyName("status")]
-    public string Status { get; set; } = "";
-}
-
-public class GoogleGeocodeResult
-{
-    [JsonPropertyName("geometry")]
-    public GoogleGeometry Geometry { get; set; } = new();
-
-    [JsonPropertyName("address_components")]
-    public List<GoogleAddressComponent> AddressComponents { get; set; } = new();
-}
-
-public class GoogleGeometry
-{
-    [JsonPropertyName("location")]
-    public GoogleLocation Location { get; set; } = new();
-}
-
-public class GoogleLocation
-{
-    [JsonPropertyName("lat")]
-    public double Lat { get; set; }
-
-    [JsonPropertyName("lng")]
-    public double Lng { get; set; }
-}
-
-public class GoogleAddressComponent
-{
-    [JsonPropertyName("long_name")]
-    public string LongName { get; set; } = "";
-
-    [JsonPropertyName("types")]
-    public List<string> Types { get; set; } = new();
-}
+} 
+ 

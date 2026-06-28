@@ -88,7 +88,11 @@ builder.Services.AddCors(options =>
             .WithOrigins(
                 "http://localhost:3000",
                 "https://localhost:3000",
+                "http://dev.cernahomecare.com",
+                "https://dev.cernahomecare.com",
+                "http://www.cernahomecare.com",
                 "https://www.cernahomecare.com",
+                "http://cernahomecare.com",
                 "https://cernahomecare.com"
             )
             .AllowAnyHeader()

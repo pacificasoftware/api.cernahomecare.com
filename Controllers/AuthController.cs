@@ -13,8 +13,9 @@ using System.Text;
 
 namespace CernaHomeCare.AdminApi.Controllers;
 
-[Route("api/[controller]")]
+[Authorize(Roles = "Super Admin")]
 [ApiController]
+[Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly IConfiguration _configuration;
@@ -53,6 +54,7 @@ public class AuthController : ControllerBase
             parameters,
             commandType: CommandType.StoredProcedure
         );
+
 
         if (user == null || string.IsNullOrWhiteSpace(user.PasswordHash))
         {
@@ -134,4 +136,80 @@ public class AuthController : ControllerBase
             token
         });
     }
-}
+ 
+
+    [Authorize(Roles = "Super Admin")] 
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var sql = @"
+            SELECT
+                au.AdminId AS AdminUserId,
+                au.AdminId AS AdminId,
+                au.Email,
+                au.UserName,
+                au.FullName,
+                au.AvatarUrl,
+                au.RoleId,
+                rm.RoleName,
+                au.FranchiseeId,
+                f.FranchiseeName,
+                au.IsActive,
+                au.IsDeleted,
+                au.CreatedUtc,
+                au.UpdatedUtc,
+                au.LastLoginUtc
+            FROM dbo.AdminUser au
+            LEFT JOIN dbo.RoleMaster rm
+                ON au.RoleId = rm.RoleId
+            LEFT JOIN dbo.Franchisees f
+                ON au.FranchiseeId = f.FranchiseeId
+            WHERE ISNULL(au.IsDeleted, 0) = 0
+            ORDER BY au.FullName, au.Email;
+        ";
+
+        var users = await conn.QueryAsync(sql);
+
+        return Ok(users);
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var sql = @"
+            SELECT
+                au.AdminId AS AdminUserId,
+                au.AdminId AS AdminId,
+                au.Email,
+                au.UserName,
+                au.FullName,
+                au.AvatarUrl,
+                au.RoleId,
+                rm.RoleName,
+                au.FranchiseeId,
+                f.FranchiseeName,
+                au.IsActive,
+                au.IsDeleted,
+                au.CreatedUtc,
+                au.UpdatedUtc,
+                au.LastLoginUtc
+            FROM dbo.AdminUser au
+            LEFT JOIN dbo.RoleMaster rm
+                ON au.RoleId = rm.RoleId
+            LEFT JOIN dbo.Franchisees f
+                ON au.FranchiseeId = f.FranchiseeId
+            WHERE au.AdminId = @Id
+              AND ISNULL(au.IsDeleted, 0) = 0;
+        ";
+
+        var user = await conn.QueryFirstOrDefaultAsync(sql, new { Id = id });
+
+        return user == null ? NotFound() : Ok(user);
+    }
+} 
