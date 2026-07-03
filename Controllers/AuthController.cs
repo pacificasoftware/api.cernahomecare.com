@@ -212,4 +212,159 @@ public class AuthController : ControllerBase
 
         return user == null ? NotFound() : Ok(user);
     }
+
+    [Authorize(Roles = "Super Admin")]
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateAdminUserRequest request)
+    {
+        if (request == null ||
+            string.IsNullOrWhiteSpace(request.Email) ||
+            string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new
+            {
+                message = "Email and password are required."
+            });
+        }
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var existingUser = await conn.QueryFirstOrDefaultAsync<int?>(
+            @"
+        SELECT AdminId
+        FROM dbo.AdminUser
+        WHERE Email = @Email
+          AND ISNULL(IsDeleted, 0) = 0;
+        ",
+            new { Email = request.Email.Trim() }
+        );
+
+        if (existingUser.HasValue)
+        {
+            return BadRequest(new
+            {
+                message = "A user with this email already exists."
+            });
+        }
+
+        var roleId = await conn.QueryFirstOrDefaultAsync<int?>(
+            @"
+        SELECT RoleId
+        FROM dbo.RoleMaster
+        WHERE RoleName = @RoleName
+          AND IsActive = 1;
+        ",
+            new { RoleName = request.RoleName?.Trim() ?? "Admin" }
+        );
+
+        if (!roleId.HasValue)
+        {
+            return BadRequest(new
+            {
+                message = "Invalid role selected."
+            });
+        }
+
+        var hasher = new PasswordHasher<CreateAdminUserRequest>();
+
+        var passwordHash = hasher.HashPassword(
+            request,
+            request.Password
+        );
+
+        var sql = @"
+        INSERT INTO dbo.AdminUser
+        (
+            Email,
+            PasswordHash,
+            RoleId,
+            UserName,
+            FullName,
+            FranchiseeId,
+            IsActive,
+            IsDeleted,
+            CreatedUtc,
+            UpdatedUtc
+        )
+        VALUES
+        (
+            @Email,
+            @PasswordHash,
+            @RoleId,
+            @UserName,
+            @FullName,
+            @FranchiseeId,
+            @IsActive,
+            0,
+            SYSUTCDATETIME(),
+            SYSUTCDATETIME()
+        );
+
+        SELECT CAST(SCOPE_IDENTITY() AS int);
+    ";
+
+        var newAdminId = await conn.ExecuteScalarAsync<int>(
+            sql,
+            new
+            {
+                Email = request.Email.Trim(),
+                PasswordHash = passwordHash,
+                RoleId = roleId.Value,
+                UserName = string.IsNullOrWhiteSpace(request.UserName)
+                    ? request.Email.Trim()
+                    : request.UserName.Trim(),
+                FullName = request.FullName?.Trim(),
+                FranchiseeId = request.FranchiseeId,
+                IsActive = request.IsActive
+            }
+        );
+
+        return Ok(new
+        {
+            message = "Admin user created successfully.",
+            adminId = newAdminId
+        });
+    }
+
+    [Authorize(Roles = "Super Admin")]
+    [HttpDelete]
+    public async Task<IActionResult> Delete([FromBody] DeleteAdminUserRequest request)
+    {
+        var adminId = request.AdminId ?? request.AdminUserId ?? 0;
+
+        if (adminId <= 0)
+        {
+            return BadRequest(new
+            {
+                message = "Missing admin user ID."
+            });
+        }
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var affectedRows = await conn.ExecuteAsync(
+            @"
+        UPDATE dbo.AdminUser
+        SET
+            IsDeleted = 1,
+            IsActive = 0,
+            UpdatedUtc = SYSUTCDATETIME()
+        WHERE AdminId = @AdminId
+          AND ISNULL(IsDeleted, 0) = 0;
+        ",
+            new { AdminId = adminId }
+        );
+
+        if (affectedRows == 0)
+        {
+            return NotFound(new
+            {
+                message = "Admin user not found."
+            });
+        }
+
+        return NoContent();
+    }
 } 

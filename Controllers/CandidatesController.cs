@@ -184,9 +184,44 @@ public class CandidatesController : ControllerBase
             });
         }
 
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        var userFranchiseeIdValue = User.FindFirstValue("FranchiseeId");
+
+        int? userFranchiseeId = int.TryParse(userFranchiseeIdValue, out var parsedFranchiseeId)
+            ? parsedFranchiseeId
+            : null;
+
+        var franchiseeId = request.FranchiseeId;
+
+        if (franchiseeId <= 0)
+        {
+            if (role != "Super Admin" && userFranchiseeId.HasValue)
+            {
+                franchiseeId = userFranchiseeId.Value;
+            }
+            else
+            {
+                var firstFranchisee = await _context.Franchisees
+                    .Where(x => x.IsActive)
+                    .OrderBy(x => x.FranchiseeId)
+                    .FirstOrDefaultAsync();
+
+                if (firstFranchisee == null)
+                {
+                    return BadRequest(new
+                    {
+                        statusCode = 400,
+                        statusMessage = "No active franchisee exists."
+                    });
+                }
+
+                franchiseeId = firstFranchisee.FranchiseeId;
+            }
+        }
+
         var candidate = new Candidate
         {
-            FranchiseeId = request.FranchiseeId,
+            FranchiseeId = franchiseeId,
             AssignedAdminUserId = request.AssignedAdminUserId,
             FullName = request.FullName.Trim(),
             Phone = request.Phone.Trim(),
@@ -302,6 +337,55 @@ public class CandidatesController : ControllerBase
         {
             statusCode = 200,
             statusMessage = "Candidate notes updated."
+        });
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> Update(int id, UpdateCandidateRequest request)
+    {
+        var candidate = await _context.Candidates
+            .FirstOrDefaultAsync(x => x.CandidateId == id && x.IsActive);
+
+        if (candidate == null)
+        {
+            return NotFound(new
+            {
+                statusCode = 404,
+                statusMessage = "Candidate not found."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.FullName))
+        {
+            return BadRequest(new
+            {
+                statusCode = 400,
+                statusMessage = "Full name is required."
+            });
+        }
+
+        candidate.FullName = request.FullName.Trim();
+        candidate.Phone = request.Phone?.Trim() ?? "";
+        candidate.Email = request.Email?.Trim() ?? "";
+        candidate.Address = request.Address?.Trim();
+        candidate.HasHcaPerId = request.HasHcaPerId?.Trim();
+        candidate.HowHeardAboutUs = request.HowHeardAboutUs;
+        candidate.Status = string.IsNullOrWhiteSpace(request.Status)
+            ? candidate.Status
+            : request.Status;
+        candidate.Notes = request.Notes;
+        candidate.Source = string.IsNullOrWhiteSpace(request.Source)
+            ? candidate.Source
+            : request.Source;
+        candidate.UpdatedUtc = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            statusCode = 200,
+            statusMessage = "Candidate updated successfully.",
+            candidate.CandidateId
         });
     }
 

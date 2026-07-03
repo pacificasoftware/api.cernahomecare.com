@@ -8,7 +8,7 @@ namespace CernaHomeCare.AdminApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Super Admin")]
+[Authorize(Roles = "Super Admin,Franchisee")]
 public class JobsController : ControllerBase
 {
     private readonly CernaHomeCareDbContext _context;
@@ -18,11 +18,56 @@ public class JobsController : ControllerBase
         _context = context;
     }
 
+    private bool IsSuperAdmin()
+    {
+        return User.IsInRole("Super Admin");
+    }
+
+    private int? GetUserFranchiseeId()
+    {
+        var value =
+            User.FindFirst("FranchiseeId")?.Value ??
+            User.FindFirst("franchiseeId")?.Value ??
+            User.FindFirst("FranchiseeID")?.Value;
+
+        return int.TryParse(value, out var franchiseeId)
+            ? franchiseeId
+            : null;
+    }
+
+    private async Task<bool> UserCanAccessFranchiseeAsync(int franchiseeId)
+    {
+        if (IsSuperAdmin())
+        {
+            return true;
+        }
+
+        var userFranchiseeId = GetUserFranchiseeId();
+
+        return userFranchiseeId.HasValue &&
+               userFranchiseeId.Value == franchiseeId;
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var jobs = await _context.Jobs
+        var query = _context.Jobs
             .Include(j => j.Franchisee)
+            .AsQueryable();
+
+        if (!IsSuperAdmin())
+        {
+            var franchiseeId = GetUserFranchiseeId();
+
+            if (!franchiseeId.HasValue)
+            {
+                return Forbid();
+            }
+
+            query = query.Where(j => j.FranchiseeId == franchiseeId.Value);
+        }
+
+        var jobs = await query
             .OrderBy(j => j.FranchiseeId)
             .ThenBy(j => j.SortOrder)
             .ThenBy(j => j.JobTitle)
@@ -38,12 +83,27 @@ public class JobsController : ControllerBase
             .Include(j => j.Franchisee)
             .FirstOrDefaultAsync(j => j.JobId == id);
 
-        return item == null ? NotFound() : Ok(item);
+        if (item == null)
+        {
+            return NotFound();
+        }
+
+        if (!await UserCanAccessFranchiseeAsync(item.FranchiseeId))
+        {
+            return Forbid();
+        }
+
+        return Ok(item);
     }
 
     [HttpGet("franchisee/{franchiseeId:int}")]
     public async Task<IActionResult> GetByFranchiseeId(int franchiseeId)
     {
+        if (!await UserCanAccessFranchiseeAsync(franchiseeId))
+        {
+            return Forbid();
+        }
+
         var jobs = await _context.Jobs
             .Where(j => j.FranchiseeId == franchiseeId)
             .OrderBy(j => j.SortOrder)
@@ -56,6 +116,11 @@ public class JobsController : ControllerBase
     [HttpGet("franchisee/{franchiseeId:int}/active")]
     public async Task<IActionResult> GetActiveByFranchiseeId(int franchiseeId)
     {
+        if (!await UserCanAccessFranchiseeAsync(franchiseeId))
+        {
+            return Forbid();
+        }
+
         var jobs = await _context.Jobs
             .Where(j => j.FranchiseeId == franchiseeId && j.IsActive)
             .OrderBy(j => j.SortOrder)
@@ -64,10 +129,22 @@ public class JobsController : ControllerBase
 
         return Ok(jobs);
     }
-   
+
     [HttpPost]
     public async Task<IActionResult> Create(Jobs job)
     {
+        if (!IsSuperAdmin())
+        {
+            var franchiseeId = GetUserFranchiseeId();
+
+            if (!franchiseeId.HasValue)
+            {
+                return Forbid();
+            }
+
+            job.FranchiseeId = franchiseeId.Value;
+        }
+
         if (job.FranchiseeId <= 0)
         {
             return BadRequest("FranchiseeId is required.");
@@ -101,7 +178,7 @@ public class JobsController : ControllerBase
     {
         if (id != job.JobId)
         {
-            return BadRequest();
+            return BadRequest("Route id does not match JobId.");
         }
 
         if (job.FranchiseeId <= 0)
@@ -121,6 +198,19 @@ public class JobsController : ControllerBase
         if (existingJob == null)
         {
             return NotFound();
+        }
+
+        if (!IsSuperAdmin())
+        {
+            var franchiseeId = GetUserFranchiseeId();
+
+            if (!franchiseeId.HasValue || existingJob.FranchiseeId != franchiseeId.Value)
+            {
+                return Forbid();
+            }
+
+            // Prevent franchisee users from moving a job to another franchisee.
+            job.FranchiseeId = franchiseeId.Value;
         }
 
         var franchiseeExists = await _context.Franchisees
@@ -150,6 +240,11 @@ public class JobsController : ControllerBase
             return NotFound();
         }
 
+        if (!await UserCanAccessFranchiseeAsync(item.FranchiseeId))
+        {
+            return Forbid();
+        }
+
         item.IsActive = request.IsActive;
         item.UpdatedUtc = DateTime.UtcNow;
 
@@ -157,40 +252,6 @@ public class JobsController : ControllerBase
 
         return NoContent();
     }
-
-    //[AllowAnonymous]
-    //[HttpGet("public/active")]
-    //public async Task<IActionResult> GetPublicActiveJobs()
-    //{
-    //    var jobs = await _context.Jobs
-    //        .Include(j => j.Franchisee)
-    //        .Where(j => j.IsActive && j.Franchisee != null && j.Franchisee.IsActive)
-    //        .OrderBy(j => j.FranchiseeId)
-    //        .ThenBy(j => j.SortOrder)
-    //        .ThenBy(j => j.JobTitle)
-    //        .Select(j => new
-    //        {
-    //            j.JobId,
-    //            j.FranchiseeId,
-    //            FranchiseeName = j.Franchisee!.FranchiseeName,
-    //            FranchiseeCity = j.Franchisee.City,
-    //            FranchiseeState = j.Franchisee.State,
-    //            FranchiseeZipCode = j.Franchisee.ZipCode,
-
-    //            j.JobTitle,
-    //            j.JobType,
-    //            j.ShiftType,
-    //            j.JobDescription,
-    //            j.City,
-    //            j.State,
-    //            j.ZipCode,
-    //            j.PayRange,
-    //            j.SortOrder
-    //        })
-    //        .ToListAsync();
-
-    //    return Ok(jobs);
-    //}
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
@@ -200,6 +261,11 @@ public class JobsController : ControllerBase
         if (item == null)
         {
             return NotFound();
+        }
+
+        if (!await UserCanAccessFranchiseeAsync(item.FranchiseeId))
+        {
+            return Forbid();
         }
 
         item.IsActive = false;
