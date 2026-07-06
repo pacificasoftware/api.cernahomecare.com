@@ -96,11 +96,11 @@ public class AuthController : ControllerBase
 
         var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, user.AdminUserId.ToString()),
-            new Claim(ClaimTypes.Name, user.FullName ?? user.Email),
+            new Claim(ClaimTypes.NameIdentifier, user.AdminUserId.ToString()), 
             new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.RoleName ?? "Admin"),
-            new Claim("AdminUserId", user.AdminUserId.ToString()),
+            new Claim(ClaimTypes.Role, user.RoleName ?? ""),
+            new Claim("role", user.RoleName ?? ""),
+            new Claim("FullName", user.FullName ?? ""), 
             new Claim("FranchiseeId", user.FranchiseeId?.ToString() ?? "")
         };
 
@@ -128,6 +128,7 @@ public class AuthController : ControllerBase
             statusMessage = "Success",
             user.AdminUserId,
             user.FullName,
+            user.AvatarUrl,
             user.Email,
             user.RoleId,
             user.RoleName,
@@ -230,23 +231,20 @@ public class AuthController : ControllerBase
         await using var conn = new SqlConnection(_connectionString);
         await conn.OpenAsync();
 
-        var existingUser = await conn.QueryFirstOrDefaultAsync<int?>(
-            @"
-        SELECT AdminId
-        FROM dbo.AdminUser
-        WHERE Email = @Email
-          AND ISNULL(IsDeleted, 0) = 0;
-        ",
-            new { Email = request.Email.Trim() }
-        );
+        var email = request.Email.Trim();
 
-        if (existingUser.HasValue)
-        {
-            return BadRequest(new
-            {
-                message = "A user with this email already exists."
-            });
-        }
+        var existingUser = await conn.QueryFirstOrDefaultAsync<dynamic>(
+            @"
+        SELECT TOP 1
+            AdminId,
+            Email,
+            IsActive,
+            IsDeleted
+        FROM dbo.AdminUser
+        WHERE LTRIM(RTRIM(LOWER(Email))) = LTRIM(RTRIM(LOWER(@Email)));
+        ",
+            new { Email = email }
+        );
 
         var roleId = await conn.QueryFirstOrDefaultAsync<int?>(
             @"
@@ -273,52 +271,110 @@ public class AuthController : ControllerBase
             request.Password
         );
 
+        if (existingUser != null)
+        {
+            var isDeleted = Convert.ToBoolean(existingUser.IsDeleted ?? false);
+
+            if (!isDeleted)
+            {
+                return BadRequest(new
+                {
+                    message = "A user with this email already exists."
+                });
+            }
+
+            await conn.ExecuteAsync(
+                @"
+                 UPDATE dbo.AdminUser
+                    SET
+                        Email = @Email,
+                        PasswordHash = @PasswordHash,
+                        RoleId = @RoleId,
+                        UserName = @UserName,
+                        FullName = @FullName,
+                        FranchiseeId = @FranchiseeId,
+                        IsActive = @IsActive,
+                        AvatarUrl = @AvatarUrl,
+                        IsDeleted = 0,
+                        UpdatedUtc = SYSUTCDATETIME()
+                    WHERE AdminId = @AdminId;
+            ",
+                      new
+                      {
+                          AdminId = (int)existingUser.AdminId,
+                          Email = email,
+                          PasswordHash = passwordHash,
+                          RoleId = roleId.Value,
+                          UserName = string.IsNullOrWhiteSpace(request.UserName)
+                        ? email
+                        : request.UserName.Trim(),
+                          FullName = request.FullName?.Trim(),
+                          FranchiseeId = request.FranchiseeId,
+                          IsActive = request.IsActive,
+                          AvatarUrl = string.IsNullOrWhiteSpace(request.AvatarUrl)
+                ? null
+                : request.AvatarUrl.Trim()
+                      }
+            );
+
+            return Ok(new
+            {
+                message = "Deleted admin user restored successfully.",
+                adminId = (int)existingUser.AdminId
+            });
+        }
+
         var sql = @"
-        INSERT INTO dbo.AdminUser
-        (
-            Email,
-            PasswordHash,
-            RoleId,
-            UserName,
-            FullName,
-            FranchiseeId,
-            IsActive,
-            IsDeleted,
-            CreatedUtc,
-            UpdatedUtc
-        )
-        VALUES
-        (
-            @Email,
-            @PasswordHash,
-            @RoleId,
-            @UserName,
-            @FullName,
-            @FranchiseeId,
-            @IsActive,
-            0,
-            SYSUTCDATETIME(),
-            SYSUTCDATETIME()
-        );
+         INSERT INTO dbo.AdminUser
+            (
+                Email,
+                PasswordHash,
+                RoleId,
+                UserName,
+                FullName,
+                FranchiseeId,
+                IsActive,
+                AvatarUrl,
+                IsDeleted,
+                CreatedUtc,
+                UpdatedUtc
+            )
+            VALUES
+            (
+                @Email,
+                @PasswordHash,
+                @RoleId,
+                @UserName,
+                @FullName,
+                @FranchiseeId,
+                @IsActive,
+                @AvatarUrl,
+                0,
+                SYSUTCDATETIME(),
+                SYSUTCDATETIME()
+            );
 
         SELECT CAST(SCOPE_IDENTITY() AS int);
     ";
 
         var newAdminId = await conn.ExecuteScalarAsync<int>(
-            sql,
-            new
-            {
-                Email = request.Email.Trim(),
-                PasswordHash = passwordHash,
-                RoleId = roleId.Value,
-                UserName = string.IsNullOrWhiteSpace(request.UserName)
-                    ? request.Email.Trim()
-                    : request.UserName.Trim(),
-                FullName = request.FullName?.Trim(),
-                FranchiseeId = request.FranchiseeId,
-                IsActive = request.IsActive
-            }
-        );
+                  sql,
+                  new
+                  {
+                      Email = email,
+                      PasswordHash = passwordHash,
+                      RoleId = roleId.Value,
+                      UserName = string.IsNullOrWhiteSpace(request.UserName)
+                          ? email
+                          : request.UserName.Trim(),
+                      FullName = request.FullName?.Trim(),
+                      FranchiseeId = request.FranchiseeId,
+                      IsActive = request.IsActive,
+                      AvatarUrl = string.IsNullOrWhiteSpace(request.AvatarUrl)
+                          ? null
+                          : request.AvatarUrl.Trim()
+                  }
+              );
 
         return Ok(new
         {
@@ -346,16 +402,115 @@ public class AuthController : ControllerBase
 
         var affectedRows = await conn.ExecuteAsync(
             @"
-        UPDATE dbo.AdminUser
-        SET
-            IsDeleted = 1,
-            IsActive = 0,
-            UpdatedUtc = SYSUTCDATETIME()
-        WHERE AdminId = @AdminId
-          AND ISNULL(IsDeleted, 0) = 0;
-        ",
+                UPDATE dbo.AdminUser
+                SET
+                    IsDeleted = 1,
+                    IsActive = 0,
+                    UpdatedUtc = SYSUTCDATETIME()
+                WHERE AdminId = @AdminId
+                  AND ISNULL(IsDeleted, 0) = 0;
+                ",
             new { AdminId = adminId }
         );
+
+        if (affectedRows == 0)
+        {
+            return NotFound(new
+            {
+                message = "Admin user not found."
+            });
+        }
+
+        return NoContent();
+    }
+    [Authorize(Roles = "Super Admin")]
+    [HttpPut]
+    public async Task<IActionResult> Update([FromBody] UpdateAdminUserRequest request)
+    {
+        var adminId = request.AdminId ?? request.AdminUserId ?? 0;
+
+        if (adminId <= 0)
+        {
+            return BadRequest(new
+            {
+                message = "Missing admin user ID."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new
+            {
+                message = "Email is required."
+            });
+        }
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        var roleId = await conn.QueryFirstOrDefaultAsync<int?>(
+            @"
+        SELECT RoleId
+        FROM dbo.RoleMaster
+        WHERE RoleName = @RoleName
+          AND IsActive = 1;
+        ",
+            new { RoleName = request.RoleName?.Trim() ?? "Admin" }
+        );
+
+        if (!roleId.HasValue)
+        {
+            return BadRequest(new
+            {
+                message = "Invalid role selected."
+            });
+        }
+
+        string? passwordHash = null;
+
+        if (!string.IsNullOrWhiteSpace(request.Password))
+        {
+            var hasher = new PasswordHasher<UpdateAdminUserRequest>();
+
+            passwordHash = hasher.HashPassword(
+                request,
+                request.Password
+            );
+        }
+
+        var affectedRows = await conn.ExecuteAsync(
+         @"
+            UPDATE dbo.AdminUser
+            SET
+                Email = @Email,
+                UserName = @UserName,
+                FullName = @FullName,
+                RoleId = @RoleId,
+                FranchiseeId = @FranchiseeId,
+                IsActive = @IsActive,
+                AvatarUrl = @AvatarUrl,
+                PasswordHash = COALESCE(@PasswordHash, PasswordHash),
+                UpdatedUtc = SYSUTCDATETIME()
+            WHERE AdminId = @AdminId
+              AND ISNULL(IsDeleted, 0) = 0;
+            ",
+         new
+         {
+             AdminId = adminId,
+             Email = request.Email.Trim(),
+             UserName = string.IsNullOrWhiteSpace(request.UserName)
+                 ? request.Email.Trim()
+                 : request.UserName.Trim(),
+             FullName = request.FullName?.Trim(),
+             RoleId = roleId.Value,
+             FranchiseeId = request.FranchiseeId,
+             IsActive = request.IsActive,
+             AvatarUrl = string.IsNullOrWhiteSpace(request.AvatarUrl)
+                 ? null
+                 : request.AvatarUrl.Trim(),
+             PasswordHash = passwordHash
+         }
+     );
 
         if (affectedRows == 0)
         {

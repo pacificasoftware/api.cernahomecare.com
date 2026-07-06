@@ -9,7 +9,7 @@ namespace CernaHomeCare.AdminApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Super Admin,Admin")]
+[Authorize(Roles = "Super Admin,Admin,Franchisee")] 
 public class CandidatesController : ControllerBase
 {
     private readonly CernaHomeCareDbContext _context;

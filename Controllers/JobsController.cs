@@ -3,12 +3,13 @@ using CernaHomeCare.AdminApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace CernaHomeCare.AdminApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Super Admin,Franchisee")]
+[Authorize(Roles = "Super Admin,Admin,Franchisee")]
 public class JobsController : ControllerBase
 {
     private readonly CernaHomeCareDbContext _context;
@@ -21,6 +22,21 @@ public class JobsController : ControllerBase
     private bool IsSuperAdmin()
     {
         return User.IsInRole("Super Admin");
+    }
+
+    private bool IsAdmin()
+    {
+        return User.IsInRole("Admin");
+    }
+
+    private bool IsFranchisee()
+    {
+        return User.IsInRole("Franchisee");
+    }
+
+    private bool CanAccessAllFranchisees()
+    {
+        return IsSuperAdmin() || IsAdmin();
     }
 
     private int? GetUserFranchiseeId()
@@ -37,7 +53,7 @@ public class JobsController : ControllerBase
 
     private async Task<bool> UserCanAccessFranchiseeAsync(int franchiseeId)
     {
-        if (IsSuperAdmin())
+        if (CanAccessAllFranchisees())
         {
             return true;
         }
@@ -46,7 +62,7 @@ public class JobsController : ControllerBase
 
         return userFranchiseeId.HasValue &&
                userFranchiseeId.Value == franchiseeId;
-    }
+    } 
 
     [HttpGet]
     public async Task<IActionResult> GetAll()
@@ -55,7 +71,7 @@ public class JobsController : ControllerBase
             .Include(j => j.Franchisee)
             .AsQueryable();
 
-        if (!IsSuperAdmin())
+        if (!CanAccessAllFranchisees())
         {
             var franchiseeId = GetUserFranchiseeId();
 
@@ -133,7 +149,7 @@ public class JobsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(Jobs job)
     {
-        if (!IsSuperAdmin())
+        if (!CanAccessAllFranchisees())
         {
             var franchiseeId = GetUserFranchiseeId();
 
@@ -200,7 +216,7 @@ public class JobsController : ControllerBase
             return NotFound();
         }
 
-        if (!IsSuperAdmin())
+        if (!CanAccessAllFranchisees())
         {
             var franchiseeId = GetUserFranchiseeId();
 
