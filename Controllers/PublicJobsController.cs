@@ -2,12 +2,11 @@
 using api.cernahomecare.com.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System;
-using System.Reflection.Emit;
+using Microsoft.EntityFrameworkCore; 
 
 [ApiController]
 [Route("api/public/jobs")]
+[AllowAnonymous]
 public class PublicJobsController : ControllerBase
 {
    
@@ -21,17 +20,60 @@ public class PublicJobsController : ControllerBase
         _googleGeocodingService = googleGeocodingService;
     }
 
+    [HttpGet("active/franchisee/{franchiseeId:int}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetActiveByFranchiseeId(int franchiseeId)
+    {
+        var jobs = await _context.Jobs
+            .AsNoTracking()
+            .Where(x =>
+                x.FranchiseeId == franchiseeId &&
+                x.IsActive
+            )
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.JobTitle)
+            .Select(x => new
+            {
+                x.JobId,
+                x.FranchiseeId,
+                FranchiseeName = x.Franchisee.FranchiseeName,
+                FranchiseeCity = x.Franchisee.City,
+                FranchiseeState = x.Franchisee.State,
+                FranchiseeZipCode = x.Franchisee.ZipCode,
+
+                x.JobTitle,
+                x.JobType,
+                x.ShiftType,
+                x.JobDescription,
+                x.City,
+                x.State,
+                x.ZipCode,
+                x.PayRange,
+                x.SortOrder,
+                x.Latitude,
+                x.Longitude
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            franchiseeId,
+            jobs
+        });
+    }
 
     [AllowAnonymous]
     [HttpGet("active")]
     public async Task<IActionResult> GetPublicActiveJobs(
-     [FromQuery] string? zipCode,
-     [FromQuery] double? latitude,
-     [FromQuery] double? longitude,
-     [FromQuery] string? searchedLocation,
-     [FromQuery] double radiusMiles = 50)
+      [FromQuery] string? zipCode,
+      [FromQuery] double? latitude,
+      [FromQuery] double? longitude,
+      [FromQuery] string? searchedLocation,
+      [FromQuery] double radiusMiles = 50)
     {
         const double earthRadiusMiles = 3958.8;
+
+        radiusMiles = Math.Clamp(radiusMiles, 1, 100);
 
         string searchedCity = searchedLocation ?? "";
 
@@ -47,13 +89,6 @@ public class PublicJobsController : ControllerBase
                 });
             }
         }
-
-        var baseQuery = _context.Jobs
-            .Include(j => j.Franchisee)
-            .Where(j =>
-                j.IsActive &&
-                j.Franchisee != null &&
-                j.Franchisee.IsActive);
 
         if ((!latitude.HasValue || !longitude.HasValue) && !string.IsNullOrWhiteSpace(zipCode))
         {
@@ -78,60 +113,40 @@ public class PublicJobsController : ControllerBase
 
         if (!latitude.HasValue || !longitude.HasValue)
         {
-            var allJobs = await baseQuery
-                .OrderBy(j => j.FranchiseeId)
-                .ThenBy(j => j.SortOrder)
-                .ThenBy(j => j.JobTitle)
-                .Select(j => new
-                {
-                    j.JobId,
-                    j.FranchiseeId,
-                    FranchiseeName = j.Franchisee!.FranchiseeName,
-                    FranchiseeCity = j.Franchisee.City,
-                    FranchiseeState = j.Franchisee.State,
-                    FranchiseeZipCode = j.Franchisee.ZipCode,
-
-                    j.JobTitle,
-                    j.JobType,
-                    j.ShiftType,
-                    j.JobDescription,
-                    j.City,
-                    j.State,
-                    j.ZipCode,
-                    j.Latitude,
-                    j.Longitude,
-                    j.PayRange,
-                    j.SortOrder,
-
-                    DistanceMiles = (double?)null
-                })
-                .ToListAsync();
-
-            return Ok(new
+            return BadRequest(new
             {
-                searchedZipCode = zipCode,
-                searchedCity,
-                jobs = allJobs
+                message = "ZIP code or coordinates are required."
             });
         }
 
         var searchLat = latitude.Value;
         var searchLng = longitude.Value;
 
-        var jobs = await baseQuery
-            .Where(j => j.Latitude != null && j.Longitude != null)
-            .Select(j => new
+        var activeJobs = await _context.Jobs
+            .Include(j => j.Franchisee)
+            .Where(j =>
+                j.IsActive &&
+                j.Franchisee != null &&
+                j.Franchisee.IsActive &&
+                j.Latitude != null &&
+                j.Longitude != null)
+            .ToListAsync();
+
+        var jobs = activeJobs
+            .Select(j =>
             {
-                Job = j,
-                DistanceMiles =
-                    earthRadiusMiles *
-                    Math.Acos(
-                        Math.Cos(searchLat * Math.PI / 180) *
-                        Math.Cos(j.Latitude!.Value * Math.PI / 180) *
-                        Math.Cos((j.Longitude!.Value - searchLng) * Math.PI / 180) +
-                        Math.Sin(searchLat * Math.PI / 180) *
-                        Math.Sin(j.Latitude!.Value * Math.PI / 180)
-                    )
+                var distanceMiles = CalculateDistanceMiles(
+                    searchLat,
+                    searchLng,
+                    j.Latitude!.Value,
+                    j.Longitude!.Value
+                );
+
+                return new
+                {
+                    Job = j,
+                    DistanceMiles = distanceMiles
+                };
             })
             .Where(x => x.DistanceMiles <= radiusMiles)
             .OrderBy(x => x.DistanceMiles)
@@ -141,6 +156,7 @@ public class PublicJobsController : ControllerBase
             {
                 x.Job.JobId,
                 x.Job.FranchiseeId,
+
                 FranchiseeName = x.Job.Franchisee!.FranchiseeName,
                 FranchiseeCity = x.Job.Franchisee.City,
                 FranchiseeState = x.Job.Franchisee.State,
@@ -162,13 +178,67 @@ public class PublicJobsController : ControllerBase
 
                 DistanceMiles = Math.Round(x.DistanceMiles, 1)
             })
-            .ToListAsync();
+            .ToList();
 
         return Ok(new
         {
             searchedZipCode = zipCode,
             searchedCity,
+            radiusMiles,
             jobs
+        });
+    }
+    private static double CalculateDistanceMiles(
+                            double lat1,
+                            double lon1,
+                            double lat2,
+                            double lon2)
+    {
+        const double earthRadiusMiles = 3958.8;
+
+        var lat1Rad = lat1 * Math.PI / 180;
+        var lat2Rad = lat2 * Math.PI / 180;
+        var deltaLatRad = (lat2 - lat1) * Math.PI / 180;
+        var deltaLonRad = (lon2 - lon1) * Math.PI / 180;
+
+        var a =
+            Math.Sin(deltaLatRad / 2) * Math.Sin(deltaLatRad / 2) +
+            Math.Cos(lat1Rad) * Math.Cos(lat2Rad) *
+            Math.Sin(deltaLonRad / 2) * Math.Sin(deltaLonRad / 2);
+
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+        return earthRadiusMiles * c;
+    }
+
+    [HttpGet("geocode/{zipCode}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GeocodeZip(string zipCode)
+    {
+        if (string.IsNullOrWhiteSpace(zipCode) ||
+            zipCode.Length != 5 ||
+            !zipCode.All(char.IsDigit))
+        {
+            return BadRequest(new
+            {
+                message = "Invalid ZIP code."
+            });
+        }
+
+        var coordinates = await _googleGeocodingService.GetLatLongFromZipAsync(zipCode);
+
+        if (coordinates == null)
+        {
+            return NotFound(new
+            {
+                message = $"No coordinates found for ZIP {zipCode}."
+            });
+        }
+
+        return Ok(new
+        {
+            zipCode,
+            coordinates
         });
     }
 }

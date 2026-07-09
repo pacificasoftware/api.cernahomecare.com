@@ -17,7 +17,7 @@ public class SeedController : ControllerBase
         _context = context;
     }
 
-  //s  [HttpPost("CreateSuperAdmin")]
+  // [HttpPost("CreateSuperAdmin")]
     //public async Task<IActionResult> CreateSuperAdmin()
     //{
     //    var role = await _context.Roles

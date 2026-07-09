@@ -56,7 +56,9 @@ public class CandidateFilesController : ControllerBase
             {
                 x.CandidateFileId,
                 x.CandidateId,
+                x.FileName,
                 x.OriginalFileName,
+                x.FilePath,
                 x.FileContentType,
                 x.FileSizeBytes,
                 x.UploadedUtc
@@ -71,15 +73,17 @@ public class CandidateFilesController : ControllerBase
     {
         var file = await _context.CandidateFiles
             .Where(x => x.CandidateFileId == id)
-            .Select(x => new
-            {
-                x.CandidateFileId,
-                x.CandidateId,
-                x.OriginalFileName,
-                x.FileContentType,
-                x.FileSizeBytes,
-                x.UploadedUtc
-            })
+             .Select(x => new
+             {
+                 x.CandidateFileId,
+                 x.CandidateId,
+                 x.FileName,
+                 x.OriginalFileName,
+                 x.FilePath,
+                 x.FileContentType,
+                 x.FileSizeBytes,
+                 x.UploadedUtc
+             })
             .FirstOrDefaultAsync();
 
         return file == null ? NotFound() : Ok(file);

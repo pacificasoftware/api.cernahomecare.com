@@ -1,4 +1,5 @@
 ﻿using api.cernahomecare.com.Data;
+using api.cernahomecare.com.Services;
 using CernaHomeCare.AdminApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,10 +14,12 @@ namespace CernaHomeCare.AdminApi.Controllers;
 public class JobsController : ControllerBase
 {
     private readonly CernaHomeCareDbContext _context;
+    private readonly GoogleGeocodingService _googleGeocodingService;
 
-    public JobsController(CernaHomeCareDbContext context)
+    public JobsController(CernaHomeCareDbContext context, GoogleGeocodingService googleGeocodingService)
     {
         _context = context;
+        _googleGeocodingService = googleGeocodingService;
     }
 
     private bool IsSuperAdmin()
@@ -183,11 +186,42 @@ public class JobsController : ControllerBase
         job.CreatedUtc = DateTime.UtcNow;
         job.UpdatedUtc = null;
 
+        // Calculate and store latitude/longitude for radius-based public job search
+        await PopulateJobCoordinatesAsync(job);
+
         _context.Jobs.Add(job);
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = job.JobId }, job);
     }
+
+    private async Task PopulateJobCoordinatesAsync(Jobs job)
+    {
+        job.ZipCode = job.ZipCode?.Trim();
+        job.City = job.City?.Trim();
+        job.State = job.State?.Trim();
+
+        if (string.IsNullOrWhiteSpace(job.ZipCode))
+        {
+            return;
+        }
+
+        if (job.ZipCode.Length != 5 || !job.ZipCode.All(char.IsDigit))
+        {
+            return;
+        }
+
+        var coordinates = await _googleGeocodingService.GetLatLongFromZipAsync(job.ZipCode);
+
+        if (coordinates == null)
+        {
+            throw new Exception($"Google geocoding returned NULL for ZIP {job.ZipCode}.");
+        }
+
+        job.Latitude = coordinates.Latitude;
+        job.Longitude = coordinates.Longitude;
+    }
+
 
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, Jobs job)
@@ -240,10 +274,34 @@ public class JobsController : ControllerBase
         job.CreatedUtc = existingJob.CreatedUtc;
         job.UpdatedUtc = DateTime.UtcNow;
 
+        var zipChanged =
+            !string.Equals(
+                existingJob.ZipCode?.Trim(),
+                job.ZipCode?.Trim(),
+                StringComparison.OrdinalIgnoreCase
+            );
+
+        if (zipChanged || job.Latitude == null || job.Longitude == null)
+        {
+            await PopulateJobCoordinatesAsync(job);
+        }
+        else
+        {
+            job.Latitude = existingJob.Latitude;
+            job.Longitude = existingJob.Longitude;
+        }
+
         _context.Entry(job).State = EntityState.Modified;
         await _context.SaveChangesAsync();
 
         return NoContent();
+        //return Ok(new
+        //{
+        //    job.JobId,
+        //    job.ZipCode,
+        //    job.Latitude,
+        //    job.Longitude
+        //});
     }
 
     [HttpPatch("{id:int}/active")]
@@ -290,7 +348,7 @@ public class JobsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
-    }
+    } 
 }
 
 public class JobActiveRequest

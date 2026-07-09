@@ -149,9 +149,6 @@ public class CandidatesController : ControllerBase
             : null;
 
         var query = _context.Candidates
-            .Include(x => x.Franchisee)
-            .Include(x => x.AssignedAdminUser)
-            .Include(x => x.CandidateFiles)
             .Where(x => x.CandidateId == id && x.IsActive)
             .AsQueryable();
 
@@ -165,7 +162,48 @@ public class CandidatesController : ControllerBase
             query = query.Where(x => x.FranchiseeId == userFranchiseeId.Value);
         }
 
-        var candidate = await query.FirstOrDefaultAsync();
+        var candidate = await query
+            .Select(x => new
+            {
+                x.CandidateId,
+                x.FranchiseeId,
+                x.AssignedAdminUserId,
+                x.FullName,
+                x.Phone,
+                x.Email,
+                x.Address,
+                x.HasHcaPerId,
+                x.HowHeardAboutUs,
+                x.Status,
+                x.Notes,
+                x.Source,
+                x.IsActive,
+                x.CreatedUtc,
+                x.UpdatedUtc,
+                Franchisee = x.Franchisee == null ? null : new
+                {
+                    x.Franchisee.FranchiseeId,
+                    x.Franchisee.FranchiseeName
+                },
+                AssignedAdminUser = x.AssignedAdminUser == null ? null : new
+                {
+                    x.AssignedAdminUser.AdminUserId,
+                    x.AssignedAdminUser.FullName,
+                    x.AssignedAdminUser.Email
+                },
+                CandidateFiles = x.CandidateFiles.Select(f => new
+                {
+                    f.CandidateFileId,
+                    f.CandidateId,
+                    f.FileName,
+                    f.OriginalFileName,
+                    f.FilePath,
+                    f.FileContentType,
+                    f.FileSizeBytes,
+                    f.UploadedUtc
+                }).ToList()
+            })
+            .FirstOrDefaultAsync();
 
         return candidate == null ? NotFound() : Ok(candidate);
     }
