@@ -1,8 +1,7 @@
-﻿namespace api.cernahomecare.com.Models
+﻿namespace Models;
+ 
+public class DeleteAdminUserRequest
 {
-    public class DeleteAdminUserRequest
-    {
-        public int? AdminId { get; set; }
-        public int? AdminUserId { get; set; }
-    }
-}
+    public int? AdminId { get; set; }
+    public int? AdminUserId { get; set; }
+} 

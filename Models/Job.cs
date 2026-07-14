@@ -1,8 +1,9 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
-namespace CernaHomeCare.AdminApi.Models;
+namespace Models;
 
-public class Jobs
+public class Job
 {
     [Key]
     public int JobId { get; set; }
@@ -26,7 +27,13 @@ public class Jobs
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
 
-    public DateTime CreatedUtc { get; set; }
-    public DateTime? UpdatedUtc { get; set; } 
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+
+    public DateTime? UpdatedUtc { get; set; }
+
     public Franchisee? Franchisee { get; set; }
+
+    [JsonIgnore]
+    public ICollection<CandidateApplication> CandidateApplications { get; set; } =
+        new List<CandidateApplication>();
 }

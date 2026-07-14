@@ -1,5 +1,4 @@
-﻿namespace CernaHomeCare.AdminApi.Models;
-
+﻿namespace Models;
 public class UpdateCandidateRequest
 {
     public string FullName { get; set; } = "";

@@ -1,5 +1,5 @@
 ﻿using api.cernahomecare.com.Data;
-using CernaHomeCare.AdminApi.Models;
+using Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

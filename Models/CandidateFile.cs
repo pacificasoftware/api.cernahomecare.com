@@ -1,4 +1,4 @@
-﻿namespace CernaHomeCare.AdminApi.Models;
+﻿namespace Models;
 
 public class CandidateFile
 {
@@ -9,7 +9,6 @@ public class CandidateFile
     public string FilePath { get; set; } = "";
     public string? FileContentType { get; set; }
     public long? FileSizeBytes { get; set; }
-    public DateTime UploadedUtc { get; set; }
-
+    public DateTime UploadedUtc { get; set; } = DateTime.UtcNow;
     public Candidate? Candidate { get; set; }
 }

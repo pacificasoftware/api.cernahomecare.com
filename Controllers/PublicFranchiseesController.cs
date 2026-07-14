@@ -3,7 +3,7 @@
 namespace api.cernahomecare.com.Controllers
 {
     using api.cernahomecare.com.Data;
-    using api.cernahomecare.com.Models;
+    using Models;
     using Microsoft.AspNetCore.Authorization;
     using Microsoft.AspNetCore.Mvc;
     using Microsoft.EntityFrameworkCore;

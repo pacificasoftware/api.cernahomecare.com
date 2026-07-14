@@ -1,5 +1,4 @@
-﻿using api.cernahomecare.com.Models;
-using CernaHomeCare.AdminApi.Models;
+﻿using Models;
 using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;

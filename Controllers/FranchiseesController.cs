@@ -1,8 +1,8 @@
 ﻿using api.cernahomecare.com.Data;
-using CernaHomeCare.AdminApi.Models;
+using Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore; 
 
 namespace CernaHomeCare.AdminApi.Controllers;
 

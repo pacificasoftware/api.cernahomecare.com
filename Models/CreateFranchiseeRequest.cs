@@ -1,5 +1,4 @@
-﻿namespace CernaHomeCare.AdminApi.Models;
-
+﻿namespace Models;
 public class CreateFranchiseeRequest
 {
     public string FranchiseeName { get; set; } = "";

@@ -1,10 +1,9 @@
 ﻿using api.cernahomecare.com.Data;
 using api.cernahomecare.com.Services;
-using CernaHomeCare.AdminApi.Models;
+using Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
+using Microsoft.EntityFrameworkCore; 
 
 namespace CernaHomeCare.AdminApi.Controllers;
 
@@ -65,13 +64,13 @@ public class JobsController : ControllerBase
 
         return userFranchiseeId.HasValue &&
                userFranchiseeId.Value == franchiseeId;
-    } 
-
+    }  
+   
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         var query = _context.Jobs
-            .Include(j => j.Franchisee)
+            .AsNoTracking()
             .AsQueryable();
 
         if (!CanAccessAllFranchisees())
@@ -83,13 +82,39 @@ public class JobsController : ControllerBase
                 return Forbid();
             }
 
-            query = query.Where(j => j.FranchiseeId == franchiseeId.Value);
+            query = query.Where(j =>
+                j.FranchiseeId == franchiseeId.Value
+            );
         }
 
         var jobs = await query
             .OrderBy(j => j.FranchiseeId)
             .ThenBy(j => j.SortOrder)
             .ThenBy(j => j.JobTitle)
+            .Select(j => new
+            {
+                j.JobId,
+                j.FranchiseeId,
+
+                FranchiseeName = j.Franchisee != null
+                    ? j.Franchisee.FranchiseeName
+                    : null,
+
+                j.JobTitle,
+                j.JobType,
+                j.ShiftType,
+                j.JobDescription,
+                j.City,
+                j.State,
+                j.ZipCode,
+                j.PayRange,
+                j.IsActive,
+                j.SortOrder,
+                j.Latitude,
+                j.Longitude,
+                j.CreatedUtc,
+                j.UpdatedUtc
+            })
             .ToListAsync();
 
         return Ok(jobs);
@@ -150,7 +175,7 @@ public class JobsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(Jobs job)
+    public async Task<IActionResult> Create(Job job)
     {
         if (!CanAccessAllFranchisees())
         {
@@ -195,7 +220,7 @@ public class JobsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = job.JobId }, job);
     }
 
-    private async Task PopulateJobCoordinatesAsync(Jobs job)
+    private async Task PopulateJobCoordinatesAsync(Job job)
     {
         job.ZipCode = job.ZipCode?.Trim();
         job.City = job.City?.Trim();
@@ -224,7 +249,7 @@ public class JobsController : ControllerBase
 
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, Jobs job)
+    public async Task<IActionResult> Update(int id, Job job)
     {
         if (id != job.JobId)
         {

@@ -1,4 +1,4 @@
-﻿namespace CernaHomeCare.AdminApi.Models;
+﻿namespace Models;
 
 public class AuditLog
 {
