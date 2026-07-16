@@ -4,6 +4,7 @@ public class CreateFranchiseeRequest
     public string FranchiseeName { get; set; } = "";
     public string? ContactName { get; set; }
     public string? Email { get; set; }
+    public string? CareersEmail { get; set; }
     public string? Phone { get; set; }
     public string? TollFreePhone { get; set; }
 
@@ -37,7 +38,8 @@ public class UpdateFranchiseeRequest
 
     public string FranchiseeName { get; set; } = "";
     public string? ContactName { get; set; }
-    public string? Email { get; set; }
+    public string? Email { get; set; } 
+    public string? CareersEmail { get; set; }
     public string? Phone { get; set; }
     public string? TollFreePhone { get; set; }
 

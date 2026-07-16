@@ -39,7 +39,33 @@ namespace api.cernahomecare.com.Controllers
             });
         }
 
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<CernaFranchiseeEmailResponse>> GetById(int id)
+        {
+            var item = await _db.Franchisees
+                .AsNoTracking()
+                .Where(x => x.FranchiseeId == id)
+                .Select(x => new CernaFranchiseeEmailResponse
+                {
+                    FranchiseeId = x.FranchiseeId,
+                    FranchiseeName = x.FranchiseeName,
+                    Email = x.Email,
+                    CareersEmail = x.CareersEmail,
+                    IsActive = x.IsActive
+                })
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(item);
+        }
+
+
         [HttpGet("{slug}")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetBySlug(string slug)
         {
             var requestedSlug = (slug ?? "")
@@ -103,6 +129,8 @@ namespace api.cernahomecare.com.Controllers
                 state = item.State,
                 phone = FormatPhone(item.Phone),
                 phoneHref = ToPhoneHref(item.Phone),
+                email = item.Email,
+                careersEmail = item.CareersEmail,
                 jobsZip = item.ZipCode
             });
         }

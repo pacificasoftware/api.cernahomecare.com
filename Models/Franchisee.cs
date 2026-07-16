@@ -10,6 +10,7 @@ public class Franchisee
 
     public string? Email { get; set; }
 
+    public string? CareersEmail { get; set; }
     public string? Phone { get; set; }
 
     public string? TollFreePhone { get; set; }

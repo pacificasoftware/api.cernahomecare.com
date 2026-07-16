@@ -92,6 +92,7 @@ public class FranchiseesController : ControllerBase
         item.FranchiseeName = franchisee.FranchiseeName;
         item.ContactName = franchisee.ContactName;
         item.Email = franchisee.Email;
+        item.CareersEmail = franchisee.CareersEmail;
         item.Phone = franchisee.Phone;
         item.TollFreePhone = franchisee.TollFreePhone;
 
